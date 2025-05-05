@@ -58,6 +58,106 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'role-select.html'));
 });
 
+// Admin Console route - Serve the admin console page
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin-console.html'));
+});
+
+// Results viewer route - Serve the actions viewer page
+app.get('/results', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'actions-viewer.html'));
+});
+
+// API endpoint to check admin authentication
+app.post('/api/check-admin-auth', (req, res) => {
+  // Always return success (no password required)
+  return res.status(200).send('Authentication successful');
+});
+
+// API endpoint to save configuration
+app.post('/api/save-config', (req, res) => {
+  // No authentication check required
+  try {
+    // Get updated config from request body
+    const updatedConfig = req.body;
+    
+    // Validate the updated config (basic validation)
+    if (!updatedConfig || typeof updatedConfig !== 'object') {
+      return res.status(400).send('Invalid configuration format');
+    }
+    
+    // Required fields that must be present in the config
+    const requiredFields = [
+      'ROUND_COUNT', 
+      'ROUND_DURATION_SEC', 
+      'SESSION_DURATION_SEC', 
+      'GRID_SIZE', 
+      'MAX_STEPS_PER_ROUND',
+      'ITEMS',
+      'ROLES',
+      'TEXT_TEMPLATES'
+    ];
+    
+    // Check if all required fields are present
+    for (const field of requiredFields) {
+      if (!(field in updatedConfig)) {
+        return res.status(400).send(`Missing required field: ${field}`);
+      }
+    }
+    
+    // Make sure config directory exists
+    if (!fs.existsSync(path.join(__dirname, 'config'))) {
+      fs.mkdirSync(path.join(__dirname, 'config'), { recursive: true });
+      console.log('Created config directory');
+    }
+    
+    // Check file access permissions before trying to write
+    try {
+      fs.accessSync(path.dirname(configPath), fs.constants.W_OK);
+    } catch (err) {
+      console.error('Config directory is not writable:', err);
+      return res.status(500).send('Server configuration directory is not writable');
+    }
+    
+    // Check if params.json exists, create it with default content if it doesn't
+    if (!fs.existsSync(configPath)) {
+      console.log('Config file does not exist, creating with default content');
+      fs.writeFileSync(configPath, JSON.stringify(gameConfig, null, 2));
+    }
+    
+    // Make a backup of the current config (timestamp in the filename)
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupPath = path.join(__dirname, 'config', `params-backup-${timestamp}.json`);
+      fs.writeFileSync(backupPath, fs.readFileSync(configPath));
+      console.log(`Config backup created at ${backupPath}`);
+    } catch (backupErr) {
+      console.error('Failed to create backup:', backupErr);
+      // Continue even if backup fails
+    }
+    
+    // Write the updated config to the file
+    try {
+      fs.writeFileSync(configPath, JSON.stringify(updatedConfig, null, 2));
+      console.log('Successfully wrote updated configuration to file');
+    } catch (writeErr) {
+      console.error('Failed to write to config file:', writeErr);
+      return res.status(500).send(`Failed to write to config file: ${writeErr.message}`);
+    }
+    
+    // Update the in-memory gameConfig
+    Object.assign(gameConfig, updatedConfig);
+    
+    // Send success response
+    res.json({ success: true, message: 'Configuration saved successfully' });
+    
+    console.log(`[${new Date().toISOString()}] Configuration updated by admin`);
+  } catch (error) {
+    console.error('Error saving configuration:', error);
+    res.status(500).send(`Error saving configuration: ${error.message}`);
+  }
+});
+
 // Static files are already served by app.use(express.static(...))
 // The fallback app.get('*') is removed as it might catch API routes otherwise
 

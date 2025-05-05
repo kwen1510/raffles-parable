@@ -106,6 +106,33 @@ Game parameters can be modified by editing the JSON files within the `config` an
 
 *Remember to restart the Node.js server (`npm start` or `node server.js`) after making changes to `config/params.json` for them to take effect.* Changes to files in `public/` (like `session-ids.json` or files in `public/text/`) are typically reflected immediately on browser refresh.
 
+## Admin Console
+
+The Raffles Parable Game includes an administrative console that allows you to edit game configurations through a user-friendly web interface, eliminating the need to manually edit JSON files.
+
+### Accessing the Admin Console
+
+1. **Make sure the game server is running** (see Setup instructions above).
+2. **Open your browser and navigate to:**
+   ```
+   http://localhost:8080/admin
+   ```
+3. This will directly open the admin console interface with full access to game configuration.
+
+### Features of the Admin Console
+
+The admin console provides an intuitive interface to modify all game parameters:
+
+* **General Settings:** Modify core game parameters like round count, durations, grid size, etc.
+* **Game Items:** Add, edit, or remove resource items that players can collect.
+* **Text Templates:** Customize all in-game messages and prompts.
+* **Inject Events:** Create and edit random event stories that occur during gameplay.
+* **Raw JSON:** For advanced users, directly edit the full configuration in JSON format.
+
+### Backup System
+
+When saving configuration changes through the admin console, the system automatically creates a backup of the previous configuration in the `config` directory with a timestamp in the filename (e.g., `params-backup-2023-09-15T12-45-30-000Z.json`). This allows you to restore previous configurations if needed.
+
 ## Endpoints
 
 Here are the primary URLs and connection points for the game:
@@ -117,14 +144,17 @@ Here are the primary URLs and connection points for the game:
     *   Interface for the Leader player, showing the map, inventory, logs, and controls.
 *   **Team Dashboard:** `http://localhost:8080/team-dashboard.html` (Accessed via redirection)
     *   Interface for Warrior, Mage, and Jester players, showing inventory, logs, objectives, and the reflection submission area.
-*   **Actions Viewer:** `http://localhost:8080/actions-viewer.html`
+*   **Actions Viewer:** `http://localhost:8080/actions-viewer.html` or `http://localhost:8080/results`
     *   A separate tool to view detailed logs and summaries of past game sessions stored in the database.
+*   **Admin Console:** `http://localhost:8080/admin`
+    *   Administrative interface to edit game configurations.
 *   **WebSocket:** `ws://localhost:8080`
     *   The core communication channel for real-time game state updates between the server and all connected players' dashboards.
 *   **API (Primarily for internal use by the frontend):**
     *   `GET /api/game-config`: Provides the contents of `config/params.json` to the client.
     *   `POST /api/claim-role`: Used by `role-select.html` to register a player's role choice with the server.
     *   `GET /api/actions`: Used by `actions-viewer.html` to fetch logged game data from the database.
+    *   `POST /api/save-config`: Used by the admin console to save configuration changes.
     *   `GET /session-ids.json`: Used by `role-select.html` to get the list of valid session IDs.
     *   `GET /text/...`: Used by dashboards to load role introductions, Elder Chew prompts, etc. (served from `public/text/`).
 

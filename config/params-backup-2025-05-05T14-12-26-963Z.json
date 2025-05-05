@@ -1,37 +1,16 @@
 {
-  "ROUND_COUNT": 5,
-  "ROUND_DURATION_SEC": 20,
+  "ROUND_COUNT": 2,
+  "ROUND_DURATION_SEC": 15,
   "SESSION_DURATION_SEC": 240,
   "GRID_SIZE": 5,
   "MAX_STEPS_PER_ROUND": 8,
   "ITEMS": [
-    {
-      "code": "W",
-      "name": "Wood",
-      "emoji": "🪵"
-    },
-    {
-      "code": "M",
-      "name": "Metal",
-      "emoji": "🔩"
-    },
-    {
-      "code": "F",
-      "name": "Feathers",
-      "emoji": "🪶"
-    },
-    {
-      "code": "S",
-      "name": "Stardust",
-      "emoji": "✨"
-    }
+    { "code": "W", "name": "Wood", "emoji": "🪵" },
+    { "code": "M", "name": "Metal", "emoji": "🔩" },
+    { "code": "F", "name": "Feathers", "emoji": "🪶" },
+    { "code": "S", "name": "Stardust", "emoji": "✨" }
   ],
-  "ROLES": [
-    "Leader",
-    "Warrior",
-    "Mage",
-    "Jester"
-  ],
+  "ROLES": ["Leader", "Warrior", "Mage", "Jester"],
   "PROMPTS_FILE_PATTERN": "text/prompts-R{role}.json",
   "MAX_CONCURRENT_GROUPS": 11,
   "INJECT_EVENT_NULL_PERCENTAGE": 20,
@@ -75,4 +54,4 @@
     "modalPenaltyTitle": "Team Penalty!",
     "modalPenaltyBody": "{reason} {lossText}"
   }
-}
+} 

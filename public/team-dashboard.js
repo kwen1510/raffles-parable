@@ -114,14 +114,29 @@ ws.onopen = () => {
 };
 
 ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
+    let data;
+    try {
+        data = JSON.parse(event.data);
+    } catch (e) {
+        // Log and ignore non-JSON messages (like keepalive pings)
+        if (typeof event.data === 'string' || (typeof Buffer !== 'undefined' && Buffer.isBuffer(event.data))) {
+            const msgStr = (typeof Buffer !== 'undefined' && Buffer.isBuffer(event.data)) ? event.data.toString('utf8') : event.data;
+            if (msgStr.trim().toLowerCase() === 'keepalive') {
+                // Optionally log or just silently ignore
+                // console.log('Received keepalive ping, ignoring.');
+                return;
+            }
+        }
+        console.error("Failed to parse message:", event.data, e);
+        return;
+    }
 
     let updateNeeded = false;
     let newState = null;
     let mapUpdateNeeded = false;
 
-    if (msg.payload && msg.payload.state) {
-        newState = msg.payload.state;
+    if (data.payload && data.payload.state) {
+        newState = data.payload.state;
         updateNeeded = true;
         // Update state variables directly
         if (newState.sessionStartTime) {
@@ -174,7 +189,7 @@ ws.onmessage = (event) => {
         }
     }
 
-    switch (msg.type) {
+    switch (data.type) {
         case 'session-start':
         case 'session-started': // Add this case to match the actual message type
             if (gridEl) {
@@ -215,11 +230,11 @@ ws.onmessage = (event) => {
             }
             break;
         case 'state-update': // Generic state update might still be useful
-             if (msg.payload && msg.payload.state) {
+             if (data.payload && data.payload.state) {
                 // Check if inventory has changed
-                if (msg.payload.state.inventory) {
+                if (data.payload.state.inventory) {
                     const oldInventory = {...inventory};
-                    const newInventory = msg.payload.state.inventory;
+                    const newInventory = data.payload.state.inventory;
                     
                     // Create a delta of changes
                     const changes = [];
@@ -248,60 +263,60 @@ ws.onmessage = (event) => {
                 }
                 
                 // Update other state properties if they exist
-                if (msg.payload.state.curr) {
-                    curr = msg.payload.state.curr;
+                if (data.payload.state.curr) {
+                    curr = data.payload.state.curr;
                 }
-                if (msg.payload.state.visited) {
-                    visited = new Set(msg.payload.state.visited);
+                if (data.payload.state.visited) {
+                    visited = new Set(data.payload.state.visited);
                 }
-                if (msg.payload.state.itemsGrid) {
-                    itemsGrid = msg.payload.state.itemsGrid;
+                if (data.payload.state.itemsGrid) {
+                    itemsGrid = data.payload.state.itemsGrid;
                 }
                 
-                if (mapUpdateNeeded || msg.payload.state.visited || msg.payload.state.curr) {
+                if (mapUpdateNeeded || data.payload.state.visited || data.payload.state.curr) {
                     renderGrid();
                 }
             }
              break;
         case 'show-modal': // Keep showing modals (like penalties)
-            if (msg.payload) {
+            if (data.payload) {
                 showBigModal({
-                    emoji: msg.payload.emoji,
-                    main: msg.payload.main,
-                    sub: msg.payload.sub,
-                    borderColor: msg.payload.borderColor,
-                    eventType: msg.payload.eventType,
+                    emoji: data.payload.emoji,
+                    main: data.payload.main,
+                    sub: data.payload.sub,
+                    borderColor: data.payload.borderColor,
+                    eventType: data.payload.eventType,
                 });
             }
             break;
         case 'reflection-penalty': // Handle team reflection penalties
             // The server sends this to ALL team members when ANY player misses a reflection
             // The whole team is penalized with the loss of one inventory item
-            const lostItemText = msg.payload.itemCode
-                ? `Lost 1 ${itemNames[msg.payload.itemCode]} (${itemEmojis[msg.payload.itemCode]})`
+            const lostItemText = data.payload.itemCode
+                ? `Lost 1 ${itemNames[data.payload.itemCode]} (${itemEmojis[data.payload.itemCode]})`
                 : 'No item lost';
             // Format to match leader dashboard
-            logEntries.push(`Reflection Penalty: ${lostItemText}. Reason: ${msg.payload.reason}`);
-            if (msg.payload.inventory) {
+            logEntries.push(`Reflection Penalty: ${lostItemText}. Reason: ${data.payload.reason}`);
+            if (data.payload.inventory) {
                 // Update our inventory to match the server's penalized inventory
-                inventory = { ...msg.payload.inventory };
+                inventory = { ...data.payload.inventory };
                 renderInventory();
             }
             renderLog();
             break;
         case 'pickup-update':
         case 'inventory-update': // Add this case to handle inventory updates from leader
-            if (msg.payload && msg.payload.inventory) {
+            if (data.payload && data.payload.inventory) {
                 // Always update inventory
                 const oldInventory = {...inventory};
-                const newInventory = msg.payload.inventory;
+                const newInventory = data.payload.inventory;
                 
                 // Update inventory data
                 inventory = { ...newInventory };
                 renderInventory();
                 
                 // Use the exact message sent from leader if available
-                if (msg.payload.messageText) {
+                if (data.payload.messageText) {
                     // Add directly to DOM
                     const logDiv = document.getElementById('log-content');
                     if (logDiv) {
@@ -309,11 +324,11 @@ ws.onmessage = (event) => {
                         msgElement.className = 'log-bubble log-system'; 
                         msgElement.style.background = '#e6ffe6';
                         msgElement.style.borderLeft = '5px solid #4CAF50';
-                        msgElement.textContent = msg.payload.messageText;
+                        msgElement.textContent = data.payload.messageText;
                         logDiv.appendChild(msgElement);
                         
                         // Also add to logEntries for later renders
-                        logEntries.push(msg.payload.messageText);
+                        logEntries.push(data.payload.messageText);
                         logDiv.scrollTop = logDiv.scrollHeight;
                     }
                     
@@ -327,7 +342,7 @@ ws.onmessage = (event) => {
                     alert.style.padding = '10px 20px';
                     alert.style.borderRadius = '5px';
                     alert.style.zIndex = '9999';
-                    alert.textContent = msg.payload.messageText;
+                    alert.textContent = data.payload.messageText;
                     document.body.appendChild(alert);
                     
                     // Remove after 4 seconds
@@ -388,30 +403,27 @@ ws.onmessage = (event) => {
             }
             break;
         case 'inject-story':
-            if (msg.payload && msg.payload.story) {
-                logEntries.push(`Inject Story: ${msg.payload.story}`);
+            if (data.payload && data.payload.story) {
+                logEntries.push(`Inject Story: ${data.payload.story}`);
                 renderLog();
             }
             break;
         case 'inject': // Add handler for inject messages from leader
-            if (msg.payload && msg.payload.inject && msg.payload.inject.story) {
+            if (data.payload && data.payload.inject && data.payload.inject.story) {
                 // First, log the story
-                logEntries.push(`Inject Story: ${msg.payload.inject.story}`);
-                
+                logEntries.push(`Inject Story: ${data.payload.inject.story}`);
                 // Then log the item loss if any
-                if (msg.payload.inject.item) {
-                    const itemCode = msg.payload.inject.item;
+                if (data.payload.inject.item) {
+                    const itemCode = data.payload.inject.item;
                     logEntries.push(`Inject: Lost 1 ${itemNames[itemCode]} (${itemEmojis[itemCode]})`);
                 } else {
                     logEntries.push('Inject: No items to lose.');
                 }
-                
                 // Update inventory from the payload if available
-                if (msg.payload.inventory) {
-                    inventory = { ...msg.payload.inventory };
+                if (data.payload.inventory) {
+                    inventory = { ...data.payload.inventory };
                     renderInventory();
                 }
-                
                 renderLog();
             }
             break;
@@ -796,18 +808,90 @@ function initializeTeamDashboard() {
     // Do NOT start local timer here, wait for session-start message
 }
 
-// Move the initialization call inside DOMContentLoaded
+// --- Helper for safe WebSocket send ---
+function safeSendWS(msg) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(msg));
+    } else {
+        console.warn("WebSocket not open, could not send:", msg);
+    }
+}
+
+// --- DOMContentLoaded Handler ---
 document.addEventListener('DOMContentLoaded', async () => {
+    // Assign DOM elements here
+    const reflectionArea = document.getElementById('reflection-area');
+    const reflectionBtn = document.getElementById('submit-reflection');
+    const playerRoleElement = document.getElementById('player-role');
+    gridEl = document.getElementById('grid');
+
+    // Get session/player/role from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('sessionId');
+    let playerId = urlParams.get('playerId');
+    const role = urlParams.get('role') || 'Warrior';
+
+    // Load config
     await loadConfig();
-    // Set up config-dependent variables
     totalRounds = config.ROUND_COUNT;
     roundDuration = config.ROUND_DURATION_SEC;
-    // Set up WebSocket using config.WEBSOCKET_URL if present
-    ws = new WebSocket(config.WEBSOCKET_URL || 'ws://localhost:8080');
-    // Assign ws to global if needed
-    window.ws = ws;
-    // Continue with the rest of the initialization
+
+    // Now create the WebSocket using dynamic URL for Glitch/local
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host;
+    const wsUrl = `${wsProtocol}//${wsHost}`;
+    ws = new WebSocket(wsUrl);
+    window.ws = ws; // Optional, for debugging
+
+    // Assign WebSocket event handlers
+    ws.onopen = () => {
+        safeSendWS({
+            sessionId,
+            type: 'register',
+            payload: { playerId, role }
+        });
+        loadElderChewMessages();
+    };
+
+    ws.onmessage = (event) => {
+        // ... (your existing onmessage logic) ...
+    };
+
+    ws.onerror = (error) => {
+        console.error(`WebSocket Error (${role}):`, error);
+    };
+
+    ws.onclose = () => {
+        // WebSocket connection closed
+    };
+
+    // Assign reflection button handler
+    if (reflectionBtn) {
+        reflectionBtn.onclick = function() {
+            const text = reflectionArea.value;
+            if (!reflectionSubmittedThisRound) {
+                logEntries.push(`Reflection Submitted (R${currentRoundNumber}): ${text || '[Empty]'}`);
+                reflectionArea.value = '';
+                renderLog();
+                reflectionSubmittedThisRound = true;
+                reflectionArea.disabled = true;
+                reflectionBtn.disabled = true;
+                safeSendWS({
+                    sessionId,
+                    type: 'reflection',
+                    payload: { playerId, text, roundNum: currentRoundNumber }
+                });
+            }
+        };
+    }
+
+    // Assign player role in UI
+    if (playerRoleElement) playerRoleElement.textContent = role;
+
+    // Initialize dashboard
     initializeTeamDashboard();
+
+    // ... (rest of your initialization logic, e.g. renderInventory, renderLog, etc.) ...
 });
 
 // Example: Simulate receiving updates from leader every 10s

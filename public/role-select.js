@@ -73,6 +73,13 @@ function promptForPlayerId() {
   return playerId;
 }
 
+// Use dynamic WebSocket URL for Glitch compatibility
+function getWebSocketURL() {
+  const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const wsHost = window.location.host;
+  return `${wsProtocol}://${wsHost}`;
+}
+
 // Initialize the page
 async function initialize() {
   await loadConfig();

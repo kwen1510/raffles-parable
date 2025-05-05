@@ -8,7 +8,7 @@ const fs = require('fs');
 const { logAction } = require('./db');
 
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 
 // In-memory session/role store
 const sessions = {};
@@ -89,7 +89,21 @@ wss.on('connection', function connection(ws) {
     console.log(`[${new Date().toISOString()}] New client connected`);
     ws.on('message', function incoming(message) {
         let data;
-        try { data = JSON.parse(message); } catch (e) { console.error("Failed to parse message:", message, e); return; }
+        try {
+            data = JSON.parse(message);
+        } catch (e) {
+            // Log and ignore non-JSON messages (like keepalive pings)
+            if (typeof message === 'string' || Buffer.isBuffer(message)) {
+                const msgStr = Buffer.isBuffer(message) ? message.toString('utf8') : message;
+                if (msgStr.trim().toLowerCase() === 'keepalive') {
+                    // Optionally log or just silently ignore
+                    // console.log('Received keepalive ping, ignoring.');
+                    return;
+                }
+            }
+            console.error("Failed to parse message:", message, e);
+            return;
+        }
         const { sessionId, type, payload } = data;
         if (!sessionId) { console.log("Message without sessionId received"); return; }
 

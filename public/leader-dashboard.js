@@ -392,129 +392,125 @@ function startLocalUITimer() {
 // --- WebSocket Integration ---
 let ws = null; // Initialize ws later
 
-function initializeWebSocket() {
-    if (ws) { // Prevent multiple connections
-        ws.close();
+// --- Helper for safe WebSocket send ---
+function safeSendWS(msg) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(msg));
+    } else {
+        console.warn("WebSocket not open, could not send:", msg);
     }
-    ws = new WebSocket(config.WEBSOCKET_URL || 'ws://localhost:8080');
-
-    ws.onopen = () => {
-        // Logging removed`);
-        if (!sessionId || !playerId || !role) {
-             console.error("Cannot register WebSocket, missing session details.");
-             return;
-        }
-        // Logging removed;
-        ws.send(JSON.stringify({
-            sessionId,
-            type: 'register',
-            payload: { playerId, role }
-        }));
-    };
-
-    ws.onmessage = (event) => {
-        // Logging removed);
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'hello') {
-            // Logging removed;
-        }
-        // Handle team reflection penalties
-        // The server will send a reflection-penalty message to ALL team members when ANY player misses a reflection
-        if (msg.type === 'reflection-penalty') {
-            const lostItemText = msg.payload.itemCode
-                ? `Lost 1 ${itemNames[msg.payload.itemCode]} (${itemEmojis[msg.payload.itemCode]})`
-                : 'No item lost';
-            log(`Reflection Penalty: ${lostItemText}. Reason: ${msg.payload.reason}`);
-            renderLog();
-            if (msg.payload.inventory) {
-                // Update our inventory to match the server's penalized inventory
-                inventory = { ...msg.payload.inventory };
-                renderInventory();
-            }
-            // Show the penalty modal
-            showBigLossModal(msg.payload.itemCode, msg.payload.reason);
-        }
-        
-        switch (msg.type) {
-            case 'session-started':
-                setupGridAndStart();
-                break;
-            case 'state-update':
-                // Make sure roundNum update DOES NOT trigger objective box update
-                /* 
-                if (msg.payload?.state?.roundNum) { ... updateObjectiveBox() ... } 
-                */
-                break;
-            case 'show-alert':
-                alert(msg.payload.message);
-                break;
-            case 'game-over':
-                showBigModal({
-                    emoji: '⏰',
-                    main: 'Game Over',
-                    sub: msg.payload?.reason || 'The session has ended.',
-                    okText: 'OK',
-                    borderColor: '#faad14',
-                    eventType: 'Game Over'
-                });
-                return;
-        }
-    };
-
-    ws.onerror = (error) => {
-        console.error(`WebSocket Error (${role || 'Unknown Role'}):`, error);
-    };
-
-    ws.onclose = (event) => {
-        // Logging removed: Code=${event.code}, Reason=${event.reason}`);
-        ws = null; // Clear reference on close
-    };
 }
 
+// --- DOMContentLoaded Handler ---
 document.addEventListener('DOMContentLoaded', async () => {
-    await loadConfig();
+    // Assign DOM elements here
+    const reflectionArea = document.getElementById('reflection-area');
+    const reflectionBtn = document.getElementById('submit-reflection');
+    const playerRoleElement = document.getElementById('player-role');
+    gridEl = document.getElementById('grid');
+
+    // Assign event handlers here
+    if (reflectionBtn) {
+        reflectionBtn.onclick = function() {
+            const text = reflectionArea.value.trim();
+            if (!reflectionSubmittedThisRound) {
+                logEntries.push(`Reflection Submitted (R${roundNum}): ${text || '[Empty]'}`);
+                reflectionArea.value = '';
+                renderLog();
+                reflectionSubmittedThisRound = true;
+                reflectionArea.disabled = true;
+                reflectionBtn.disabled = true;
+                if (!roundHistory[roundNum-1]) roundHistory[roundNum-1] = { round: roundNum };
+                roundHistory[roundNum-1].reflection = text;
+                saveHistory();
+                safeSendWS({
+                    sessionId,
+                    type: 'reflection',
+                    payload: { playerId, text, roundNum }
+                });
+            }
+        };
+    }
+
+    // Load config
+    try {
+        await loadConfig();
+    } catch (e) {
+        alert("Failed to load game config.");
+        return;
+    }
     sessionSeconds = config.ROUND_COUNT * config.ROUND_DURATION_SEC;
     roundNum = 1;
     roundSeconds = config.ROUND_DURATION_SEC;
-    // Set up WebSocket using config.WEBSOCKET_URL if present
-    ws = new WebSocket(config.WEBSOCKET_URL || 'ws://localhost:8080');
-    // Assign ws to global if needed
-    window.ws = ws;
-    // ... rest of your initialization logic that depends on config ...
-    // (Move any code that used to run at the top level, such as event listeners, into here)
 
-    // Assign session parameters now
+    // Get session/player/role from URL
     const urlParams = new URLSearchParams(window.location.search);
-    // Use temporary variables first
-    const tempSessionId = urlParams.get('sessionId');
-    const tempPlayerId = urlParams.get('playerId');
-    const tempRole = urlParams.get('role') || 'Leader';
-    
-    // Assign to global variables AFTER reading
-    sessionId = tempSessionId;
-    playerId = tempPlayerId;
-    role = tempRole;
+    sessionId = urlParams.get('sessionId');
+    playerId = urlParams.get('playerId');
+    role = urlParams.get('role') || 'Leader';
 
-    // Explicitly check if role was assigned before proceeding
-    if (role) {
-        // Update UI elements that depend on role
-        const playerRoleElement = document.getElementById('player-role');
-        if (playerRoleElement) playerRoleElement.textContent = role;
-        
-        // Load role-specific texts now that role is confirmed
-        loadRoleIntro(role);
-
-        // Initialize WebSocket connection now that we have session details
-        initializeWebSocket();
-        
-        // Other initial setup if needed
-        renderInventory(); 
-        renderLog();
-    } else {
-        console.error("CRITICAL: Role could not be determined from URL or fallback.");
-        alert("Error: Could not determine player role!");
+    if (!sessionId || !playerId || !role) {
+        alert("Missing session or player information.");
+        return;
     }
+
+    if (playerRoleElement) playerRoleElement.textContent = role;
+
+    // Load role-specific texts
+    await loadRoleIntro(role);
+
+    // Now initialize WebSocket
+    initializeWebSocket();
+
+    // Other setup
+    renderInventory();
+    renderLog();
 });
+
+// --- WebSocket Initialization ---
+function initializeWebSocket() {
+    if (ws) ws.close();
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host;
+    const wsUrl = `${wsProtocol}//${wsHost}`;
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => {
+        if (!sessionId || !playerId || !role) {
+            console.error("Cannot register WebSocket, missing session details.");
+            return;
+        }
+        safeSendWS({
+            sessionId,
+            type: 'register',
+            payload: { playerId, role }
+        });
+    };
+    ws.onmessage = (event) => {
+        let data;
+        try {
+            data = JSON.parse(event.data);
+        } catch (e) {
+            // Log and ignore non-JSON messages (like keepalive pings)
+            if (typeof event.data === 'string' || Buffer.isBuffer(event.data)) {
+                const msgStr = Buffer.isBuffer(event.data) ? event.data.toString('utf8') : event.data;
+                if (msgStr.trim().toLowerCase() === 'keepalive') {
+                    // Optionally log or just silently ignore
+                    // console.log('Received keepalive ping, ignoring.');
+                    return;
+                }
+            }
+            console.error("Failed to parse message:", event.data, e);
+            return;
+        }
+        // ... (your message handling code) ...
+    };
+    ws.onerror = (error) => {
+        console.error(`WebSocket Error (${role || 'Unknown Role'}):`, error);
+    };
+    ws.onclose = (event) => {
+        ws = null;
+    };
+}
 
 // --- Grid Map ---
 const N = 5;
@@ -943,27 +939,6 @@ function showInjectChoiceModal(injectStory) {
         });
     }, 100);
 }
-
-// Modify reflectionBtn.onclick to include round number and use consistent message format
-reflectionBtn.onclick = function() {
-    const text = reflectionArea.value.trim();
-    if (!reflectionSubmittedThisRound) {
-        logEntries.push(`Reflection Submitted (R${roundNum}): ${text || '[Empty]'}`);
-        reflectionArea.value = '';
-        renderLog();
-        reflectionSubmittedThisRound = true;
-        reflectionArea.disabled = true;
-        reflectionBtn.disabled = true;
-        if (!roundHistory[roundNum-1]) roundHistory[roundNum-1] = { round: roundNum };
-        roundHistory[roundNum-1].reflection = text;
-        saveHistory();
-        ws.send(JSON.stringify({
-            sessionId,
-            type: 'reflection',
-            payload: { playerId, text, roundNum }
-        }));
-    }
-};
 
 function showBigLossModal(itemCode, reasonText) {
     // This already calls showBigModal, which will now broadcast

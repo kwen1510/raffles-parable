@@ -12,7 +12,6 @@
   ],
   "ROLES": ["Leader", "Warrior", "Mage", "Jester"],
   "PROMPTS_FILE_PATTERN": "text/prompts-R{role}.json",
-  "DB_PATH": "./data/game-sessions.db",
   "MAX_CONCURRENT_GROUPS": 11,
   "INJECT_EVENT_NULL_PERCENTAGE": 20,
   "INJECT_RANDOM_PERCENTAGE": 30,
@@ -27,8 +26,6 @@
     "A shimmering portal taxes your inventory for passage.",
     "A riddle from the void: pay up or face the unknown!"
   ],
-  "WEBSOCKET_PORT": 8080,
-  "WEBSOCKET_URL": "ws://localhost:8080",
   "PLAYER_EMOJI": "🧑‍🚀",
   "PICKUP_SINGLE_QTY": 3,
   "PICKUP_CHOICE_QTY": 1,

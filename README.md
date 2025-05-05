@@ -130,4 +130,42 @@ Here are the primary URLs and connection points for the game:
 
 ## Data Storage
 
-All game actions, player reflections, and significant events are logged chronologically to an SQLite database file located at `data/game.db`. This allows for persistent storage and later analysis of gameplay via the Actions Viewer. 
+All game actions, player reflections, and significant events are logged chronologically to an SQLite database file located at `data/game.db`. This allows for persistent storage and later analysis of gameplay via the Actions Viewer.
+
+## Troubleshooting
+
+If you encounter issues with the game, here are some common problems and their solutions:
+
+1. **WebSocket Connection Issues**: If team members cannot connect to the leader dashboard, check that all players are using the same Session ID and that the server is running properly.
+
+2. **UI Problems**:
+   - **Modal Windows Not Closing**: Team dashboard has been updated to ensure all modal windows have functional "OK" buttons.
+   - **Reflection Input Not Working**: Recent fixes ensure that reflection textareas are properly enabled when needed.
+
+3. **Penalty System Issues**: If reflection penalties don't seem to be working correctly, verify that the leader dashboard is showing the correct inventory changes after penalties are applied.
+
+4. **JavaScript Loading Errors**: If you see "Uncaught SyntaxError: Unexpected token '<'" errors in the console:
+   - Ensure proper MIME type specifications in server.js
+   - Try clearing your browser cache or using incognito mode
+   - Check that all script tags in HTML files have correct paths
+
+5. **Hosting on Glitch.com**: The application is compatible with Glitch hosting. If deploying there, simply import the project and follow the standard Node.js application deployment process on Glitch.
+
+## Recent Updates
+
+The following improvements have been made to enhance game functionality:
+
+- Fixed WebSocket connectivity issues between leader and team dashboards
+- Resolved UI problems where team members couldn't close modal boxes
+- Fixed issues with reflection system, ensuring team members can properly submit reflections
+- Enhanced inventory update mechanisms to properly log penalties and reflect changes
+- Updated modal systems to conditionally show "OK" buttons based on context
+- Fixed JavaScript loading issues through proper MIME type specifications
+
+## Contributors
+
+The Raffles Parable Game was built for educational purposes. If you'd like to contribute to the project, please submit a pull request or open an issue for discussion.
+
+## License
+
+This project is available under [insert license information]. See the LICENSE file for more details. 

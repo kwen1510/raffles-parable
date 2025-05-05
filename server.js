@@ -128,6 +128,14 @@ wss.on('connection', function connection(ws) {
                 session.roles[payload.role] = payload.playerId;
                 console.log(`[${sessionId}] Registered role: ${payload.role} for player ${payload.playerId}`);
             }
+            // --- NEW: If session already started, send current state to this client ---
+            if (session.started && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'session-started',
+                    payload: { state: session.state, roles: session.roles }
+                }));
+                console.log(`[${sessionId}] Sent session-started to late-joining client ${payload.playerId}`);
+            }
         }
 
         if (!session.clients.some(client => client === ws)) { // Use some() for better check
@@ -145,6 +153,13 @@ wss.on('connection', function connection(ws) {
                 session.started = true;
                 session.state = payload.state || {};
                 session.log = [];
+                
+                // Explicitly register Leader role if not done already
+                if (!session.roles['Leader'] || session.roles['Leader'] !== payload.playerId) {
+                    session.roles['Leader'] = payload.playerId;
+                    console.log(`[${sessionId}] Explicitly registered Leader role for ${payload.playerId}`);
+                }
+                
                 // Generate a new gameInstance (HH:MM in GMT+8)
                 const now = new Date();
                 const gmt8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
@@ -153,6 +168,7 @@ wss.on('connection', function connection(ws) {
                 session.gameInstance = `${hh}:${mm}`;
                 console.log(`[${sessionId}] New gameInstance: ${session.gameInstance}`);
                 console.log(`[${sessionId}] Leader started session. Initial state received with end times:`, session.state.sessionEndTime, session.state.roundEndTime);
+                
                 // Log roles mapping for this session (after all roles are claimed)
                 const playerIdToRole = {};
                 for (const [roleName, pid] of Object.entries(session.roles)) {
@@ -209,16 +225,21 @@ wss.on('connection', function connection(ws) {
             if (!penaltyAlreadyApplied) {
                  // Apply penalty - lose one random item from inventory
                  let lostItem = null;
-                 const inv = session.state.inventory;
-                 for (const code of Object.keys(inv)) {
-                     if (inv[code] > 0) {
-                         inv[code]--;
-                         lostItem = code;
-                         break;
-                     }
-                 }
-                 let reason = 'A reflection was missed.';
-                 if (lostItem) {
+                 const inv = session.state.inventory || {};
+                 
+                 console.log(`[${sessionId}] Current inventory before penalty:`, inv);
+                 
+                 // Get non-empty inventory items
+                 const availableItems = Object.entries(inv)
+                     .filter(([code, qty]) => qty > 0)
+                     .map(([code]) => code);
+                 
+                 console.log(`[${sessionId}] Available items for penalty:`, availableItems);
+                 
+                 if (availableItems.length > 0) {
+                     // Select random item to remove
+                     lostItem = availableItems[Math.floor(Math.random() * availableItems.length)];
+                     inv[lostItem]--;
                      console.log(`[${sessionId}] Penalty: Lost 1 ${lostItem} due to missed reflection in round ${currentRound}`);
                  } else {
                      console.log(`[${sessionId}] Penalty: No item to lose for missed reflection in round ${currentRound}`);
@@ -230,14 +251,29 @@ wss.on('connection', function connection(ws) {
                  // Update the server's state record with the new inventory
                  session.state.inventory = { ...inv };
                  
+                 let reason = 'A reflection was missed.';
+                 
                  // Notify ALL team members about the penalty (entire team is penalized)
+                 console.log(`[${sessionId}] Broadcasting reflection-penalty to all clients. Lost item: ${lostItem}`);
+                 
                  session.clients.forEach(client => {
                      if (client.readyState === WebSocket.OPEN) {
+                         console.log(`[${sessionId}] Sending reflection-penalty to client ${client.playerId}:`, { itemCode: lostItem, reason, inventory: { ...inv } });
                          client.send(JSON.stringify({
                              type: 'reflection-penalty',
                              payload: { itemCode: lostItem, reason, inventory: { ...inv } }
                          }));
                      }
+                 });
+                 
+                 // Log the penalty action with correct structure
+                 logAction({
+                     sessionId,
+                     roundNum: currentRound,
+                     playerId: 'server',
+                     actionType: 'penalty',
+                     actionData: { reason, lostItem, inventory: { ...inv } },
+                     gameInstance: session.gameInstance || ''
                  });
             } else {
                 console.log(`[${sessionId}] Penalty already applied for round ${currentRound}, ignoring duplicate reflection-missing from ${playerId}`);
@@ -540,4 +576,4 @@ app.get('/api/actions', (req, res) => {
       res.json(rows);
     }
   });
-});
+});  

@@ -568,8 +568,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         ws = null;
     };
 
-    // Assign reflection button handler
+    // Ensure reflection controls are enabled by default
+    if (reflectionArea) {
+        reflectionArea.disabled = false;
+    }
     if (reflectionBtn) {
+        reflectionBtn.disabled = false;
+        
+        // Restore the button click handler
         reflectionBtn.onclick = function() {
             console.log('[Team] Reflection submitted');
             const text = reflectionArea.value;

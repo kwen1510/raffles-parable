@@ -130,6 +130,7 @@ function renderTimers() {
 const startBtn = document.getElementById('start-game-btn');
 if (startBtn) {
     startBtn.onclick = function() {
+        console.log('[Leader] Game start button clicked');
         logEntries.push('Leader starting the game...');
         renderLog();
         this.disabled = true;
@@ -310,7 +311,7 @@ function startLocalUITimer() {
                 logEntries.push(`Reflection Missed (R${roundThatEnded}): ${text || '[Empty]'}`);
                 renderLog();
                 
-                // Send to server
+                console.log('Sending reflection-missing', { sessionId, playerId, roundNum: roundThatEnded, text });
                 ws.send(JSON.stringify({
                     sessionId,
                     type: 'reflection-missing',
@@ -358,6 +359,7 @@ function startLocalUITimer() {
                 reportedMissedRounds.add(lastRound);
                 logEntries.push(`Reflection Missed (R${lastRound}): ${text || '[Empty]'}`);
                 renderLog();
+                console.log('Sending reflection-missing', { sessionId, playerId, roundNum: lastRound, text });
                 ws.send(JSON.stringify({
                     sessionId,
                     type: 'reflection-missing',
@@ -412,6 +414,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Assign event handlers here
     if (reflectionBtn) {
         reflectionBtn.onclick = function() {
+            console.log('[Leader] Reflection submitted');
             const text = reflectionArea.value.trim();
             if (!reflectionSubmittedThisRound) {
                 logEntries.push(`Reflection Submitted (R${roundNum}): ${text || '[Empty]'}`);
@@ -474,41 +477,45 @@ function initializeWebSocket() {
     const wsHost = window.location.host;
     const wsUrl = `${wsProtocol}//${wsHost}`;
     ws = new WebSocket(wsUrl);
-    ws.onopen = () => {
-        if (!sessionId || !playerId || !role) {
-            console.error("Cannot register WebSocket, missing session details.");
-            return;
-        }
-        safeSendWS({
-            sessionId,
-            type: 'register',
-            payload: { playerId, role }
-        });
-    };
+    ws.onopen = () => console.log('[Leader] WebSocket opened');
+    ws.onclose = () => console.log('[Leader] WebSocket closed');
+    ws.onerror = (e) => console.error('[Leader] WebSocket error:', e);
     ws.onmessage = (event) => {
-        let data;
         try {
-            data = JSON.parse(event.data);
-        } catch (e) {
-            // Log and ignore non-JSON messages (like keepalive pings)
-            if (typeof event.data === 'string' || Buffer.isBuffer(event.data)) {
-                const msgStr = Buffer.isBuffer(event.data) ? event.data.toString('utf8') : event.data;
-                if (msgStr.trim().toLowerCase() === 'keepalive') {
-                    // Optionally log or just silently ignore
-                    // console.log('Received keepalive ping, ignoring.');
-                    return;
+            const msg = JSON.parse(event.data);
+            console.log('[Leader] WebSocket message:', msg.type, msg.payload);
+            
+            if (msg.type === 'reflection-penalty') {
+                console.log('[Leader] Penalty received:', msg.payload);
+                
+                // Handle reflection penalty
+                const lostItemText = msg.payload.itemCode
+                    ? `Lost 1 ${itemNames[msg.payload.itemCode]} (${itemEmojis[msg.payload.itemCode]})`
+                    : 'No item lost';
+                const reason = msg.payload.reason || 'A reflection was missed.';
+                
+                // Add to log
+                log(`Reflection Penalty: ${lostItemText}. Reason: ${reason}`);
+                
+                // Update inventory from server
+                if (msg.payload.inventory) {
+                    inventory = { ...msg.payload.inventory };
+                    renderInventory();
                 }
+                
+                // Show penalty modal
+                showBigModal({
+                    emoji: '⚠️',
+                    main: 'Team Penalty Applied',
+                    sub: `${reason}<br><br>${lostItemText}`,
+                    okText: 'Acknowledge',
+                    borderColor: '#e63946'
+                });
             }
-            console.error("Failed to parse message:", event.data, e);
-            return;
+            // ... existing code ...
+        } catch (e) {
+            console.error('[Leader] Failed to parse WebSocket message:', event.data, e);
         }
-        // ... (your message handling code) ...
-    };
-    ws.onerror = (error) => {
-        console.error(`WebSocket Error (${role || 'Unknown Role'}):`, error);
-    };
-    ws.onclose = (event) => {
-        ws = null;
     };
 }
 
@@ -674,6 +681,7 @@ function isAdjacent(r, c) {
     return dr + dc === 1;
 }
 function onCellClick(e) {
+    console.log('[Leader] Move action');
     if (!canMove) return;
     const cell = e.target.closest('.cell');
     if (!cell) return;
@@ -722,27 +730,43 @@ function showBigModal({emoji, main, sub, okText, onOk, borderColor, eventType}) 
     modal.style.alignItems = 'center';
     modal.style.justifyContent = 'center';
     modal.style.zIndex = 1000;
+    
+    // Determine if this is a choice modal (contains interactive elements)
+    const isChoiceModal = sub && (sub.includes('<button') || sub.includes('data-code'));
+    
+    // Only include OK button if:
+    // 1. okText is provided explicitly, OR
+    // 2. This is for a penalty event, OR
+    // 3. This is NOT a choice modal (choice modals have their own actions)
+    const showOkButton = !!okText || eventType === 'Reflection Penalty' || !isChoiceModal;
+    
+    // Modal content with or without button
+    const buttonHtml = showOkButton 
+        ? `<button class='modal-ok-btn' style='font-size:1.2em;padding:0.7em 2.5em;margin-top:1em;border-radius:18px;border:2px solid #222;background:#e0e0e0;color:#222;font-weight:600;cursor:pointer;'>${okText || 'OK'}</button>`
+        : '';
+        
     modal.innerHTML = `<div style="background:#fff;padding:2.5em 3em;border-radius:28px;box-shadow:0 2px 24px #0003;text-align:center;min-width:320px;border:2.5px solid ${borderColor || '#e0e0e0'};">
         ${(eventType ? `<div style='color:#888;font-size:0.95em;margin-bottom:0.7em;'>${eventType}</div>` : '')}
         <div style='font-size:2.5em;margin-bottom:0.5em;'>${emoji || ''}</div>
         <div style='font-size:1.5em;font-weight:bold;margin-bottom:0.7em;'>${main}</div>
         <div style='font-size:1.1em;color:#444;margin-bottom:1.2em;'>${sub || ''}</div>
-        ${okText ? `<button style='font-size:1.2em;padding:0.7em 2.5em;margin-top:1em;border-radius:18px;border:2px solid #222;background:#e0e0e0;color:#222;font-weight:600;'>${okText}</button>` : ''}
+        ${buttonHtml}
     </div>`;
     document.body.appendChild(modal);
-    const okBtn = modal.querySelector('button');
+    
+    const okBtn = modal.querySelector('.modal-ok-btn');
     if (okBtn) {
-        okBtn.onclick = () => {
-            document.body.removeChild(modal);
-            if (onOk) onOk();
-        };
+        okBtn.addEventListener('click', () => {
+            modal.remove();
+            if (typeof onOk === 'function') onOk();
+        });
     }
-
-    // Broadcast the modal info (excluding the onOk callback)
+    
+    // Broadcast the modal info to team members (excluding the onOk callback)
     ws.send(JSON.stringify({
         sessionId,
         type: 'show-modal',
-        payload: { emoji, main, sub, okText, borderColor, eventType }
+        payload: { emoji, main, sub, okText: 'OK', borderColor, eventType }
     }));
 }
 
@@ -849,6 +873,7 @@ function removeLogCard() {
 
 // --- Inject Card in Log ---
 function showInjectLogic() {
+    console.log('[Leader] Inject action');
     removeLogCard();
     // Show inject story
     const injectStory = injectStories[Math.floor(Math.random() * injectStories.length)];
@@ -941,13 +966,11 @@ function showInjectChoiceModal(injectStory) {
 }
 
 function showBigLossModal(itemCode, reasonText) {
-    // This already calls showBigModal, which will now broadcast
     showBigModal({
         emoji: itemEmojis[itemCode],
         main: `You lost 1 ${itemNames[itemCode]}!`,
-        sub: reasonText || '',
+        sub: '',
         okText: 'OK'
-        // No onOk needed here, showBigModal handles the button click
     });
 }
 
@@ -961,6 +984,7 @@ function clearHistory() {
 
 // Modify existing broadcast functions to include timers
 function broadcastMove(move, state) {
+    console.log('[Leader] Move action', move, state);
     const fullState = {
         ...state,
         sessionEndTime, // Include end times
@@ -972,6 +996,7 @@ function broadcastMove(move, state) {
     ws.send(JSON.stringify({ sessionId, type: 'move', payload: { move, state: fullState, roundNum, playerId } }));
 }
 function broadcastInject(inject, state, choicesGiven, choiceMade) {
+    console.log('[Leader] Inject action', inject, state);
     const fullState = {
         inventory: state.inventory,
         curr: state.curr,

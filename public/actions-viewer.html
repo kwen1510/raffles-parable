@@ -468,6 +468,7 @@
       log: '📝',
       reflection: '💭',
       'reflection-missing': '⚠️',
+      penalty: '⛔',
     };
     let allActions = [];
     let allSessions = [];
@@ -756,6 +757,33 @@
                 if (inject.item) detailsHtml += `<div><b>Item lost:</b> ${getItemEmoji(inject.item) || inject.item}</div>`;
               } catch {
                 detailsHtml = '<em>(invalid inject data)</em>';
+              }
+            } else if (a.action_type === 'penalty') {
+              try {
+                const penaltyData = JSON.parse(a.action_data);
+                const lostItem = penaltyData.lostItem || 'none';
+                const reason = penaltyData.reason || 'Unknown reason';
+                const lostItemEmoji = lostItem === 'W' ? '🪵' : 
+                                     lostItem === 'M' ? '🔩' : 
+                                     lostItem === 'F' ? '🪶' : 
+                                     lostItem === 'S' ? '✨' : '❓';
+                
+                detailsHtml = `<div><b>Reason:</b> ${reason}</div>`;
+                if (lostItem !== 'none') {
+                  detailsHtml += `<div><b>Item lost:</b> ${lostItemEmoji} ${lostItem}</div>`;
+                } else {
+                  detailsHtml += `<div><b>No item lost</b></div>`;  
+                }
+                
+                // Show final inventory if present
+                if (penaltyData.inventory) {
+                  const inv = penaltyData.inventory;
+                  const invStr = Object.entries(inv).map(([k, v]) => `${getItemEmoji(k)}: ${v}`).join(', ');
+                  detailsHtml += `<div><b>Final inventory:</b> ${invStr}</div>`;
+                }
+              } catch (e) {
+                console.error("Error parsing penalty data:", e);
+                detailsHtml = `<em>(invalid penalty data)</em> ${a.action_data}`;
               }
             } else {
               try {

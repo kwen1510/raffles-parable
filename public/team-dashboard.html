@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Team Dashboard</title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f7f7f7;
+            color: #222;
+            width: 100vw;
+            height: 100vh;
+        }
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f7f7f7;
+            padding: 0.7em 2em 0.7em 2em;
+            border-bottom: 1px solid #e0e0e0;
+            height: 60px;
+            box-sizing: border-box;
+        }
+        .timers {
+            display: flex;
+            align-items: center;
+            gap: 2em;
+            font-size: 1.2em;
+        }
+        .main-area {
+            display: grid;
+            grid-template-columns: 1.2fr 2.8fr 1.2fr;
+            grid-template-rows: 1fr;
+            height: calc(100vh - 60px);
+            width: 100vw;
+            background: #f7f7f7;
+        }
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: flex-start;
+            padding: 2em 1em 1em 1em;
+            background: #f7f7f7;
+            border-right: 1px solid #e0e0e0;
+            height: 100%;
+            box-sizing: border-box;
+            min-width: 240px;
+            max-width: 340px;
+            gap: 1.2em;
+        }
+        .role-box,
+        .objective-box,
+        .inventory-box {
+            background: #fff;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 18px;
+            box-shadow: 0 2px 8px #0001;
+            padding: 1.1em 1.2em;
+            margin-bottom: 1.2em;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            font-size: 1.15em;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .role-box {
+            font-size: 1.25em;
+            font-weight: bold;
+            background: #f7f7f7;
+        }
+        .objective-box {
+            background: #f3f3f3;
+        }
+        .inventory-box {
+            background: #f7f7f7;
+        }
+        .inventory-box h2 {
+            margin: 0 0 0.5em 0;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        #inventory-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #inventory-list li {
+            margin-bottom: 0.4em;
+            font-size: 1.08em;
+        }
+        .center-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            background: #fafbff;
+        }
+        .grid {
+            display: none; /* Hide grid initially */
+            gap: 8px;
+            background: #fff;
+            box-shadow: 2px 2px 12px rgba(0,0,0,0.10);
+            grid-template-columns: repeat(5, minmax(110px, 1fr));
+            grid-template-rows: repeat(5, minmax(110px, 1fr));
+            align-content: center;
+            justify-content: center;
+            padding: 24px;
+            border-radius: 18px;
+            width: 600px;
+            height: 600px;
+        }
+        .cell {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 12px !important;
+            border: 2px solid #e0e0e0 !important;
+            background: #f3f3f3 !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: default; /* No clicking for team */
+            transition: background 0.2s, border 0.2s;
+            font-size: 2.2em;
+        }
+        .cell.visited { background: #f7f7f7 !important; color: #bbb; }
+        .cell.current { border: 3px solid #222 !important; background: #e0e0e0 !important; }
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+            padding: 2em 1.5em 1em 1.5em;
+            background: #f7f7f7;
+            border-left: 1px solid #e0e0e0;
+            height: 100%;
+            box-sizing: border-box;
+        }
+        .log-box {
+            width: 100%;
+            background: #f3f3f3;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 18px;
+            padding: 1.5em 1.5em;
+            font-size: 1.08em;
+            margin-bottom: 1.2em;
+            flex: 1 1 0;
+            min-height: 0;
+            max-height: none;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 2px 12px #0001;
+        }
+        .reflection-box {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        #reflection-area {
+            border-radius: 12px;
+            border: 1.5px solid #e0e0e0;
+            background: #fff;
+            font-size: 1.1em;
+            padding: 1em 1.2em;
+            margin-bottom: 1em;
+            resize: none;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        #reflection-area:disabled {
+            background: #eee;
+            color: #888;
+        }
+        #submit-reflection {
+            align-self: flex-end;
+            padding: 0.7em 2em;
+            font-size: 1.1em;
+            border-radius: 18px;
+            background: #e0e0e0;
+            color: #222;
+            font-weight: bold;
+            box-shadow: 0 1px 4px #0001;
+        }
+        .log-bubble {
+            border-radius: 14px;
+            margin: 0.6em 0;
+            padding: 1em 1.2em;
+            font-size: 1.08em;
+            word-break: break-word;
+            box-shadow: 0 1px 4px #0001;
+            border-left: 5px solid #e0e0e0;
+            background: #fff;
+            transition: background 0.2s;
+        }
+        .log-bubble.log-system {
+            background: #eafaf1;
+            border-left: 5px solid #b2dfc7;
+            color: #333;
+        }
+        .log-bubble.log-reflection {
+            background: #eaf7ff;
+            border-left: 5px solid #4a90e2;
+            color: #1a3a5a;
+        }
+        .log-bubble.log-user {
+            background: #f9fbe7;
+            border-left: 5px solid #cddc39;
+            color: #666600;
+        }
+        .log-bubble.log-elder {
+            background: #ede7f6;
+            border-left: 5px solid #7e57c2;
+            color: #4527a0;
+            font-size: 1.18em;
+            font-weight: 600;
+        }
+        .log-bubble.log-inject-story {
+            background: #fffbe6;
+            border-left: 5px solid #ffb300;
+            color: #7c5a00;
+        }
+        #start-game-btn, .log-card button, .modal button, #submit-reflection {
+            background: #e0e0e0;
+            color: #222;
+            border: none;
+            border-radius: 18px;
+            font-size: 1.1em;
+            font-weight: 600;
+            padding: 0.7em 2em;
+            margin: 0.5em 0;
+            box-shadow: 0 1px 4px #0001;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        #start-game-btn:disabled, #submit-reflection:disabled {
+            background: #f3f3f3;
+            color: #aaa;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="timers">
+            <div id="primary-timer">Session: --:--</div>
+            <div>Round: <span id="turn-counter">- / -</span></div>
+            <div id="secondary-timer">Round Timer: --:--</div>
+        </div>
+    </div>
+    <div class="main-area">
+        <div class="left-panel">
+            <div class="role-box">
+                Role:<br/>
+                <span id="player-role">Warrior</span>
+            </div>
+            <div class="objective-box" id="objective-box">
+                Elder Chew: Warrior, your strength is needed! Focus your efforts on collecting sturdy Wood. The ship relies on the resilience you bring. Venture forth, gather Wood, and protect the team's progress.
+            </div>
+            <div class="inventory-box">
+                <h2>Inventory</h2>
+                <ul id="inventory-list">
+                    <li>Wood: 0</li>
+                    <li>Metal: 0</li>
+                    <li>Feathers: 0</li>
+                    <li>Stardust: 0</li>
+                </ul>
+            </div>
+            
+            <!-- Add debug element -->
+            <div id="debug-message" style="font-size:11px;background:#fff;padding:5px;margin-top:10px;border:1px solid #ccc;border-radius:5px;max-height:150px;overflow:auto;display:none;">
+            </div>
+            
+        </div>
+        <div class="center-panel">
+            <div id="grid" class="grid">
+                <!-- Cells will be generated dynamically -->
+            </div>
+        </div>
+        <div class="right-panel">
+            <div id="log-content" class="log-box">
+                <!-- Log entries will appear here dynamically -->
+            </div>
+            <div class="reflection-box">
+                <textarea id="reflection-area" placeholder="Type your reflection here..." rows="3" disabled></textarea>
+                <button id="submit-reflection" disabled>Submit</button>
+            </div>
+        </div>
+    </div>
+    <script src="team-dashboard.js"></script>
+</body>
+</html> 
